@@ -1,0 +1,95 @@
+name: Template Build
+# We build the binaries for all os and configurations
+# So we don't have to do that on each test run
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+        description: 'The operating system to use'
+      image:
+        required: true
+        type: string
+        description: 'The image to use'
+      build_configuration:
+        required: true
+        type: string
+        description: 'The build configuration to use'
+      manual_build:
+        required: false
+        type: boolean
+        description: 'Whether to do the build'
+        default: true
+      publish:
+        required: true
+        type: boolean
+        description: 'Whether to publish the build artifacts'
+    outputs:
+      HarmonyXVersion:
+        value: ${{ jobs.build-output-cache.outputs.HarmonyXVersion }}
+      HarmonyXVersionSuffix:
+        value: ${{ jobs.build-output-cache.outputs.HarmonyXVersionSuffix }}
+      VersionTagExists:
+        value: ${{ jobs.build-output-cache.outputs.VersionTagExists }}
+
+env:
+  # Disable the .NET logo in the console output.
+  DOTNET_NOLOGO: true
+  # Disable the .NET first time experience to skip caching NuGet packages and speed up the build.
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  # Disable sending .NET CLI telemetry to Microsoft.
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-output-cache:
+    name: Upload Test Build Output Cache
+    runs-on: ${{inputs.image}}
+    if: ${{!inputs.manual_build || inputs.publish}}
+    timeout-minutes: 10
+    outputs:
+      HarmonyXVersion: ${{ steps.get-version.outputs.HarmonyXVersion }}
+      HarmonyXVersionSuffix: ${{ steps.get-version.outputs.HarmonyXVersionSuffix }}
+      VersionTagExists: ${{ steps.get-version.outputs.VersionTagExists }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+      
+      # https://github.com/dotnet/msbuild/issues/3911
+      - name: Get version and check tag existence
+        id: get-version
+        run: |
+          HarmonyXVersion=$(dotnet msbuild Directory.Build.props -getProperty:HarmonyXVersion)
+          HarmonyXVersionSuffix=$(dotnet msbuild Directory.Build.props -getProperty:HarmonyXVersionSuffix)
+          echo "HarmonyXVersion = $HarmonyXVersion"          
+          echo "HarmonyXVersionSuffix = $HarmonyXVersionSuffix"
+          echo "HarmonyXVersion=$HarmonyXVersion" >> $GITHUB_OUTPUT
+          echo "HarmonyXVersionSuffix=$HarmonyXVersionSuffix" >> $GITHUB_OUTPUT
+          
+          if [[ $(git ls-remote --tags origin "refs/tags/v$HarmonyXVersion$HarmonyXVersionSuffix") ]]; then
+            VersionTagExists="true"
+          else
+            VersionTagExists="false"
+          fi
+          echo "VersionTagExists = $VersionTagExists"
+          echo "VersionTagExists=$VersionTagExists" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: |
+          dotnet build -c ${{inputs.build_configuration}} Harmony.sln
+
+      - name: Upload Test Build Output Cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-${{inputs.os}}-${{inputs.build_configuration}}
+          path: HarmonyTests/bin/**/*
+
+      - name: Upload Harmony zip
+        if: ${{inputs.publish}}
+        uses: actions/upload-artifact@v4
+        with:
+          name: HarmonyX-${{inputs.build_configuration}}-${{inputs.os}}
+          path: Harmony/bin/${{inputs.build_configuration}}/*.nupkg

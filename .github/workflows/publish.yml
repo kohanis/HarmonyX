@@ -1,0 +1,43 @@
+name: Template Publishing
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      artifact:
+        type: string
+        required: true
+      pre-release:
+        type: boolean
+        default: false
+        required: false
+
+jobs:
+  publish:
+    name: Publish and release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{inputs.artifact}}
+          path: artifacts
+          
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          prerelease: ${{ inputs.prerelease }}
+          draft: true
+          files: ./artifacts/*.nupkg
+
+      - name: Push Nuget Package
+        env:
+          NUGET_KEY: ${{ secrets.NUGET_KEY }}
+        if: env.NUGET_KEY != ''
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key "$NUGET_KEY" --source https://api.nuget.org/v3/index.json

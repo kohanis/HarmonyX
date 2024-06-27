@@ -136,7 +136,11 @@ namespace HarmonyLibTests.Patching
 		public void Test_Patch_With_Module_Call()
 		{
 			if (AccessTools.IsMonoRuntime)
-				Environment.SetEnvironmentVariable("MONOMOD_DMD_TYPE", "cecil");
+				// FIXME: https://github.com/MonoMod/MonoMod/issues/173
+				Assert.Ignore( "Currently not working on mono" );
+
+			// if (AccessTools.IsMonoRuntime)
+			// 	Environment.SetEnvironmentVariable("MONOMOD_DMD_TYPE", "cecil");
 			var testMethod = ModuleLevelCall.CreateTestMethod();
 			Assert.AreEqual(0, testMethod());
 
@@ -147,8 +151,8 @@ namespace HarmonyLibTests.Patching
 
 			instance.Patch(testMethod.Method, postfix: new HarmonyMethod(postfix));
 			Assert.AreEqual(1, testMethod());
-			if (AccessTools.IsMonoRuntime)
-				Environment.SetEnvironmentVariable("MONOMOD_DMD_TYPE", "");
+			// if (AccessTools.IsMonoRuntime)
+			// 	Environment.SetEnvironmentVariable("MONOMOD_DMD_TYPE", "");
 		}
 
 		[Test]

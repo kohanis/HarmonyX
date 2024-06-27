@@ -2,7 +2,6 @@
 
 var target = Argument("target", "Build");
 var nugetKey = Argument("nugetKey", "");
-var useTmpLocalNuget = Argument("useTmpLocalNuget", false);
 
 string RunGit(string command, string separator = "") 
 {
